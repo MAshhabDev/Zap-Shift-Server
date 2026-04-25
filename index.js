@@ -9,7 +9,7 @@ const port = process.env.PORT || 5000
 app.use(cors())
 app.use(express.json())
 
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const uri = `mongodb://${process.env.DB_USER}:${process.env.DB_PASS}@ac-k50mwtj-shard-00-00.4j5c4iq.mongodb.net:27017,ac-k50mwtj-shard-00-01.4j5c4iq.mongodb.net:27017,ac-k50mwtj-shard-00-02.4j5c4iq.mongodb.net:27017/?ssl=true&replicaSet=atlas-xqdkdv-shard-0&authSource=admin&appName=Cluster0`;
 
 const client = new MongoClient(uri, {
@@ -44,8 +44,17 @@ async function run() {
 
         app.post('/parcels', async (req, res) => {
             const parcel = req.body
+
+            parcel.createdAt = new Date()
             const result = await parcelCollection.insertOne(parcel)
             res.send(result)
+        })
+
+        app.delete('/parcel/:id', async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: new ObjectId(id) };
+            const result = await parcelCollection.deleteOne(query)
+            res.send(result);
         })
 
         // Connect the client to the server	(optional starting in v4.7)
