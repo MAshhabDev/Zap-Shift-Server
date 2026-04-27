@@ -109,6 +109,20 @@ async function run() {
                 const id = session.metadata.parcelId;
                 const query = { _id: new ObjectId(id) }
 
+
+                // For stopping Duplicate Payment Entry
+                const transactionId = session.payment_intent;
+                const query = { transactionId: transactionId }
+
+                const paymentExist = await paymentsCollection.findOne(query)
+                if (paymentExist) {
+                    return res.send({
+                        message: 'already exists',
+                        transactionId,
+                        trackingId: paymentExist.trackingId
+                    })
+                }
+
                 const trackingId = generateTrackingId()
 
                 const update = {
@@ -129,6 +143,7 @@ async function run() {
                     transactionId: session.payment_intent,
                     paymentStatus: session.payment_status,
                     paidAt: new Date(),
+                    trackingId: trackingId
                 }
 
                 const resultPayment = await paymentsCollection.insertOne(payment)
@@ -141,6 +156,17 @@ async function run() {
                     paymentInfo: resultPayment
                 })
             }
+        })
+
+        app.get('/payments', async (req, res) => {
+            const email = req.query.email;
+            const query = {},
+            if (email) {
+                query.customerEmail = email
+            }
+            const cursor = paymentsCollection.findOne(query)
+            const result = await cursor.toArray();
+            res.send(result)
         })
 
         await client.connect();
