@@ -67,6 +67,7 @@ async function run() {
         const parcelCollection = db.collection('parcels')
         const paymentsCollection = db.collection('payments')
         const usersCollection = db.collection('users')
+        const ridersCollection = db.collection('riders')
 
 
         // Parcel Api
@@ -107,12 +108,47 @@ async function run() {
             user.role = 'user';
             user.createdAt = new Date()
             const email = user.email;
-            const userExists = await usersCollection.find(email)
+            const userExists = await usersCollection.findOne(email)
             if (userExists) {
                 return res.send({ message: "User Exists" })
             }
 
             const result = await usersCollection.insertOne(user)
+            res.send(result)
+        });
+
+        // Riders Related Api
+
+        app.get('/riders', async (req, res) => {
+            const query = {};
+            if (req.query.status) {
+                query.status = req.query.status;
+
+            }
+            const cursor = ridersCollection.find(query);
+            const result = await cursor.toArray();
+            res.send(result)
+        })
+
+        app.patch('/riders/:id', async (req, res) => {
+            const status = req.body.status;
+            const id = req.params.id
+            const query = { _id: new ObjectId(id) }
+            const updateDoc = {
+                $set: {
+                    status: status
+                }
+            }
+
+            const result = await ridersCollection.updateOne(query, updateDoc)
+            res.send(result)
+        })
+
+        app.post('/riders', async (req, res) => {
+            const rider = req.body;
+            rider.status = 'pending';
+            rider.createdAt = new Date()
+            const result = await ridersCollection.insertOne(rider);
             res.send(result)
         })
 
