@@ -9,6 +9,38 @@ const stripe = require('stripe')(process.env.STRIPE_SECRET);
 app.use(cors())
 app.use(express.json())
 
+
+
+
+const admin = require("firebase-admin");
+
+const serviceAccount = require("./zap-shift-e22aa.json");
+
+admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount)
+});
+
+// Create Custom Middleware
+
+const verifyToken = async (req, res, next) => {
+    const token = req.headers.authorization
+    if (!token) {
+        return res.status(401).send({ message: "Unauthorized Access" })
+    }
+    try {
+        const idToken = token.split(' ')[1];
+        const decoded = await admin.auth().verifyIdToken(idToken);
+        req.decoded_email = decoded.email;
+        next()
+
+    }
+    catch {
+        return res.status(401).send({ message: "Unauthorized" })
+
+    }
+}
+
+
 const crypto = require('crypto');
 
 function generateTrackingId() {
@@ -112,9 +144,9 @@ async function run() {
 
                 // For stopping Duplicate Payment Entry
                 const transactionId = session.payment_intent;
-                const query = { transactionId: transactionId }
+                const payQuery = { transactionId: transactionId }
 
-                const paymentExist = await paymentsCollection.findOne(query)
+                const paymentExist = await paymentsCollection.findOne(payQuery)
                 if (paymentExist) {
                     return res.send({
                         message: 'already exists',
@@ -158,13 +190,16 @@ async function run() {
             }
         })
 
-        app.get('/payments', async (req, res) => {
+        app.get('/payments', verifyToken, async (req, res) => {
             const email = req.query.email;
-            const query = {},
+            const query = {};
             if (email) {
                 query.customerEmail = email
+                if (email !== req.decoded_email) {
+                    return res.status(403).send({ message: "Forbidden" })
+                }
             }
-            const cursor = paymentsCollection.findOne(query)
+            const cursor = paymentsCollection.find(query)
             const result = await cursor.toArray();
             res.send(result)
         })
