@@ -66,6 +66,8 @@ async function run() {
         const db = client.db("zap_shift_db");
         const parcelCollection = db.collection('parcels')
         const paymentsCollection = db.collection('payments')
+        const usersCollection = db.collection('users')
+
 
         // Parcel Api
         app.get('/parcels', async (req, res) => {
@@ -97,6 +99,21 @@ async function run() {
             const query = { _id: new ObjectId(id) };
             const result = await parcelCollection.deleteOne(query)
             res.send(result);
+        })
+
+        // Users Related Api
+        app.post('/users', async (req, res) => {
+            const user = req.body;
+            user.role = 'user';
+            user.createdAt = new Date()
+            const email = user.email;
+            const userExists = await usersCollection.find(email)
+            if (userExists) {
+                return res.send({ message: "User Exists" })
+            }
+
+            const result = await usersCollection.insertOne(user)
+            res.send(result)
         })
 
         // Payment Related Api
@@ -199,7 +216,7 @@ async function run() {
                     return res.status(403).send({ message: "Forbidden" })
                 }
             }
-            const cursor = paymentsCollection.find(query)
+            const cursor = paymentsCollection.find(query).sort({ paidAt: -1 })
             const result = await cursor.toArray();
             res.send(result)
         })
