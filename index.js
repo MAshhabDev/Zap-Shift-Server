@@ -103,12 +103,20 @@ async function run() {
         })
 
         // Users Related Api
+
+        app.get('/users', verifyToken, async (req, res) => {
+            const cursor = usersCollection.find();
+            const result = await cursor.toArray();
+            res.send(result)
+        })
+
+
         app.post('/users', async (req, res) => {
             const user = req.body;
             user.role = 'user';
             user.createdAt = new Date()
             const email = user.email;
-            const userExists = await usersCollection.findOne(email)
+            const userExists = await usersCollection.findOne({ email })
             if (userExists) {
                 return res.send({ message: "User Exists" })
             }
@@ -138,6 +146,19 @@ async function run() {
                 $set: {
                     status: status
                 }
+            }
+
+            if (status === 'approved') {
+                const email = req.body.email;
+                const userQuery = { email }
+                const updateUser = {
+                    $set: {
+                        role: 'rider'
+                    }
+                }
+
+                const userResult = await usersCollection.updateOne(userQuery, updateUser)
+
             }
 
             const result = await ridersCollection.updateOne(query, updateDoc)
