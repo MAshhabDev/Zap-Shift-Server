@@ -72,21 +72,26 @@ async function run() {
         // Mdille Admin Before Allwoing Admin Activity
         // Must be used after verify token middleware
         const verifyAdmin = async (req, res, next) => {
-            const email = runInNewContext.decoded_email;
-            const query = { email }
-            const user = await usersCollection.findOne(query)
+            const email = req.decoded_email;
+            const query = { email };
+            const user = await usersCollection.findOne(query);
 
-            if (!user || user.role !== admin) {
-                return res.status(403).send({ message: "Forbidden" })
+            if (!user || user.role !== 'admin') {
+                return res.status(403).send({ message: "Forbidden" });
             }
-        }
+
+            next();
+        };
 
         // Parcel Api
         app.get('/parcels', async (req, res) => {
             const query = {}
-            const { email } = req.query
+            const { email, deliveryStatus } = req.query
             if (email) {
                 query.senderEmail = email
+            }
+            if (deliveryStatus) {
+                query.deliveryStatus = deliveryStatus
             }
             const result = await parcelCollection.find(query).toArray()
             res.send(result)
@@ -113,10 +118,49 @@ async function run() {
             res.send(result);
         })
 
+        app.patch('/parcels/:id', async (req, res) => {
+            const { riderId, riderName, riderEmail } = req.body
+            const id = req.params.id;
+            const query = { _id: new ObjectId(id) }
+            const updatedDoc = {
+                $set: {
+                    deliveryStatus: 'driver_assigned',
+                    riderId: riderId,
+                    riderName: riderName,
+                    riderEmail: riderEmail
+                }
+            }
+            const result = await parcelCollection.updateOne(query, updatedDoc)
+
+            // Update Rider Information   Ektar bhitor thekei dui jaigai update
+
+            const riderQuery = { _id: new ObjectId(riderName) }
+            const riderUpdate = {
+                $set: {
+                    workStatus: 'in_delivery'
+                }
+            }
+            const riderResult = await ridersCollection.updateOne(riderQuery, riderUpdate)
+
+            res.send(riderResult)
+        })
+
         // Users Related Api
 
         app.get('/users', verifyToken, async (req, res) => {
-            const cursor = usersCollection.find();
+            const searchText = req.query.searchText;
+            const query = {}
+            if (searchText) {
+                // query.displayName = searchText
+
+                query.$or = [
+                    { displayName: { $regex: searchText, $options: 'i' } },
+                    { email: { $regex: searchText, $options: 'i' } }
+                ]
+            }
+
+
+            const cursor = usersCollection.find(query).limit(5);
             const result = await cursor.toArray();
             res.send(result)
         })
@@ -163,10 +207,18 @@ async function run() {
         // Riders Related Api
 
         app.get('/riders', async (req, res) => {
+
+            const { status, district, workStatus } = req.query
             const query = {};
             if (req.query.status) {
                 query.status = req.query.status;
 
+            }
+            if (district) {
+                query.district = district
+            }
+            if (workStatus) {
+                query.workStatus = workStatus
             }
             const cursor = ridersCollection.find(query);
             const result = await cursor.toArray();
@@ -174,31 +226,45 @@ async function run() {
         })
 
         app.patch('/riders/:id', verifyToken, verifyAdmin, async (req, res) => {
-            const status = req.body.status;
-            const id = req.params.id
-            const query = { _id: new ObjectId(id) }
-            const updateDoc = {
-                $set: {
-                    status: status
-                }
-            }
+            try {
 
-            if (status === 'approved') {
+
+                const status = req.body.status;
                 const email = req.body.email;
-                const userQuery = { email }
-                const updateUser = {
+                const id = req.params.id;
+
+                const query = { _id: new ObjectId(id) };
+
+                const updateDoc = {
                     $set: {
-                        role: 'rider'
+                        status: status,
+                        workStatus: status === 'approved' ? 'available' : 'unavailable'
                     }
+                };
+
+                if (status === 'approved') {
+                    const userQuery = { email: email };
+                    const updateUser = {
+                        $set: {
+                            role: 'rider'
+                        }
+                    };
+
+                    await usersCollection.updateOne(userQuery, updateUser);
                 }
 
-                const userResult = await usersCollection.updateOne(userQuery, updateUser)
+                const result = await ridersCollection.updateOne(query, updateDoc);
+                res.send(result);
 
+            } catch (error) {
+                console.error('PATCH /riders/:id error:', error.message);
+
+                res.status(500).send({
+                    message: 'Failed to update rider',
+                    error: error.message
+                });
             }
-
-            const result = await ridersCollection.updateOne(query, updateDoc)
-            res.send(result)
-        })
+        });
 
         app.post('/riders', async (req, res) => {
             const rider = req.body;
@@ -269,6 +335,7 @@ async function run() {
                 const update = {
                     $set: {
                         paymentStatus: 'paid',
+                        deliveryStatus: 'pending-pickup',
                         trackingId: trackingId
                     }
                 }
