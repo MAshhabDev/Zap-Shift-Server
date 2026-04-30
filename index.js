@@ -69,6 +69,17 @@ async function run() {
         const usersCollection = db.collection('users')
         const ridersCollection = db.collection('riders')
 
+        // Mdille Admin Before Allwoing Admin Activity
+        // Must be used after verify token middleware
+        const verifyAdmin = async (req, res, next) => {
+            const email = runInNewContext.decoded_email;
+            const query = { email }
+            const user = await usersCollection.findOne(query)
+
+            if (!user || user.role !== admin) {
+                return res.status(403).send({ message: "Forbidden" })
+            }
+        }
 
         // Parcel Api
         app.get('/parcels', async (req, res) => {
@@ -136,7 +147,7 @@ async function run() {
             res.send(result)
         });
 
-        app.patch('/users/:id', async (req, res) => {
+        app.patch('/users/:id', verifyToken, verifyAdmin, async (req, res) => {
             const id = req.params.id;
             const roleInfo = req.body;
             const query = { _id: new ObjectId(id) }
@@ -162,7 +173,7 @@ async function run() {
             res.send(result)
         })
 
-        app.patch('/riders/:id', async (req, res) => {
+        app.patch('/riders/:id', verifyToken, verifyAdmin, async (req, res) => {
             const status = req.body.status;
             const id = req.params.id
             const query = { _id: new ObjectId(id) }
