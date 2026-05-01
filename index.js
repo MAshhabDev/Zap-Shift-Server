@@ -97,6 +97,23 @@ async function run() {
             res.send(result)
         })
 
+        app.get('/parcels/rider', async (req, res) => {
+            const query = {}
+            const { riderEmail, deliveryStatus } = req.query
+            if (riderEmail) {
+                query.riderEmail = riderEmail
+            }
+
+            if (deliveryStatus) {
+                query.deliveryStatus = deliveryStatus
+            }
+
+            const cursor = parcelCollection.find(query)
+            const result = await cursor.toArray();
+            res.send(result)
+
+        })
+
         app.get('/parcels/:id', async (req, res) => {
             const id = req.params.id;
             const query = { _id: new ObjectId(id) }
@@ -134,7 +151,7 @@ async function run() {
 
             // Update Rider Information   Ektar bhitor thekei dui jaigai update
 
-            const riderQuery = { _id: new ObjectId(riderName) }
+            const riderQuery = { _id: new ObjectId(riderId) }
             const riderUpdate = {
                 $set: {
                     workStatus: 'in_delivery'
@@ -142,7 +159,10 @@ async function run() {
             }
             const riderResult = await ridersCollection.updateOne(riderQuery, riderUpdate)
 
-            res.send(riderResult)
+            res.send({
+                parcelUpdate: result,
+                riderUpdate: riderResult
+            })
         })
 
         // Users Related Api
