@@ -98,13 +98,18 @@ async function run() {
         })
 
         app.get('/parcels/rider', async (req, res) => {
-            const query = {}
             const { riderEmail, deliveryStatus } = req.query
+
+            const query = {}
             if (riderEmail) {
                 query.riderEmail = riderEmail
             }
 
-            if (deliveryStatus) {
+            if (deliveryStatus !== 'parcel_delivered') {
+                // query.deliveryStatus = { $in: ['driver_assigned', 'rider_arriving'] }
+                query.deliveryStatus = { $nin: ['parcel_delivered'] }
+            }
+            else {
                 query.deliveryStatus = deliveryStatus
             }
 
@@ -135,6 +140,8 @@ async function run() {
             res.send(result);
         })
 
+        // To do rename this to be sepcific like /parcels/:id/assign
+
         app.patch('/parcels/:id', async (req, res) => {
             const { riderId, riderName, riderEmail } = req.body
             const id = req.params.id;
@@ -163,6 +170,28 @@ async function run() {
                 parcelUpdate: result,
                 riderUpdate: riderResult
             })
+        })
+
+        app.patch('/parcels/:id/status', async (req, res) => {
+            const { deliveryStatus, riderId } = req.body;
+            const query = { _id: new ObjectId(req.params.id) }
+            const updateDoc = {
+                $set: {
+                    deliveryStatus: deliveryStatus
+                }
+            }
+            if (deliveryStatus === 'parcel_delivered') {
+                // Update Rider Information   
+                const riderQuery = { _id: new ObjectId(riderId) }
+                const riderUpdate = {
+                    $set: {
+                        workStatus: 'available'
+                    }
+                }
+                const riderResult = await ridersCollection.updateOne(riderQuery, riderUpdate)
+            }
+            const result = await parcelCollection.updateOne(query, updateDoc)
+            res.send(result)
         })
 
         // Users Related Api
