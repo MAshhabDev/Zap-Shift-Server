@@ -9,9 +9,6 @@ const stripe = require('stripe')(process.env.STRIPE_SECRET);
 app.use(cors())
 app.use(express.json())
 
-
-
-
 const admin = require("firebase-admin");
 
 const serviceAccount = require("./zap-shift-e22aa.json");
@@ -68,6 +65,7 @@ async function run() {
         const paymentsCollection = db.collection('payments')
         const usersCollection = db.collection('users')
         const ridersCollection = db.collection('riders')
+        const trackingsCollection = db.collection('trackings')
 
         // Mdille Admin Before Allwoing Admin Activity
         // Must be used after verify token middleware
@@ -143,7 +141,7 @@ async function run() {
         // To do rename this to be sepcific like /parcels/:id/assign
 
         app.patch('/parcels/:id', async (req, res) => {
-            const { riderId, riderName, riderEmail } = req.body
+            const { riderId, riderName, riderEmail, trackingId } = req.body
             const id = req.params.id;
             const query = { _id: new ObjectId(id) }
             const updatedDoc = {
@@ -166,6 +164,10 @@ async function run() {
             }
             const riderResult = await ridersCollection.updateOne(riderQuery, riderUpdate)
 
+            // log tracking
+
+            logTracking(trackingId, 'driver_assigned')
+
             res.send({
                 parcelUpdate: result,
                 riderUpdate: riderResult
@@ -173,7 +175,7 @@ async function run() {
         })
 
         app.patch('/parcels/:id/status', async (req, res) => {
-            const { deliveryStatus, riderId } = req.body;
+            const { deliveryStatus, riderId,trackingId } = req.body;
             const query = { _id: new ObjectId(req.params.id) }
             const updateDoc = {
                 $set: {
@@ -191,8 +193,26 @@ async function run() {
                 const riderResult = await ridersCollection.updateOne(riderQuery, riderUpdate)
             }
             const result = await parcelCollection.updateOne(query, updateDoc)
+
+            // log tracking
+
+            logTracking(trackingId,deliveryStatus)
             res.send(result)
         })
+
+        // Tracking Api
+
+        const logTracking = async (trackingId, status) => {
+            const log = {
+                trackingId,
+                status,
+                details: status.split('-').join(' '),
+                createdAt: new Date()
+            }
+
+            const result = await trackingsCollection.insertOne(log);
+            return result;
+        }
 
         // Users Related Api
 
@@ -405,6 +425,8 @@ async function run() {
 
                 const resultPayment = await paymentsCollection.insertOne(payment)
 
+                logTracking(trackingId, 'pending-pickup')
+
                 res.send({
                     success: true,
                     modifyParcel: result,
@@ -426,6 +448,16 @@ async function run() {
             }
             const cursor = paymentsCollection.find(query).sort({ paidAt: -1 })
             const result = await cursor.toArray();
+            res.send(result)
+        })
+
+
+        // Tracking related Api
+
+        app.get('/trackings/:trackingId/logs',async(req,res)=>{
+            const trackingId=req.params.trackingId;
+            const query={trackingId}
+            const result= await trackingsCollection.find(query).toArray();
             res.send(result)
         })
 
