@@ -126,7 +126,13 @@ async function run() {
 
         app.post('/parcels', async (req, res) => {
             const parcel = req.body
+
+            // Generate tracking id
+            const trackingId = generateTrackingId()
             parcel.createdAt = new Date()
+            parcel.trackingId = trackingId;
+
+
             const result = await parcelCollection.insertOne(parcel)
             res.send(result)
         })
@@ -175,7 +181,7 @@ async function run() {
         })
 
         app.patch('/parcels/:id/status', async (req, res) => {
-            const { deliveryStatus, riderId,trackingId } = req.body;
+            const { deliveryStatus, riderId, trackingId } = req.body;
             const query = { _id: new ObjectId(req.params.id) }
             const updateDoc = {
                 $set: {
@@ -196,7 +202,7 @@ async function run() {
 
             // log tracking
 
-            logTracking(trackingId,deliveryStatus)
+            logTracking(trackingId, deliveryStatus)
             res.send(result)
         })
 
@@ -366,7 +372,8 @@ async function run() {
                 mode: 'payment',
                 metadata: {
                     parcelId: paymentInfo.parcelId,
-                    parcelName: paymentInfo.parcelName
+                    parcelName: paymentInfo.parcelName,
+                    trackingId: paymentInfo.trackingId
                 },
                 success_url: `${process.env.SITE_DOMAIN}/dashboard/payment-success?session_id={CHECKOUT_SESSION_ID}`,
                 cancel_url: `${process.env.SITE_DOMAIN}/dashboard/payment-cancelled`,
@@ -398,14 +405,16 @@ async function run() {
                         trackingId: paymentExist.trackingId
                     })
                 }
-
-                const trackingId = generateTrackingId()
+                // Old
+                // const trackingId = generateTrackingId()
+                // Use the previous tracking if during the parcel create which was set 
+                // to the session meta data during session create
+                const trackingId = session.metadata.trackingId
 
                 const update = {
                     $set: {
                         paymentStatus: 'paid',
                         deliveryStatus: 'pending-pickup',
-                        trackingId: trackingId
                     }
                 }
 
@@ -454,10 +463,10 @@ async function run() {
 
         // Tracking related Api
 
-        app.get('/trackings/:trackingId/logs',async(req,res)=>{
-            const trackingId=req.params.trackingId;
-            const query={trackingId}
-            const result= await trackingsCollection.find(query).toArray();
+        app.get('/trackings/:trackingId/logs', async (req, res) => {
+            const trackingId = req.params.trackingId;
+            const query = { trackingId }
+            const result = await trackingsCollection.find(query).toArray();
             res.send(result)
         })
 
