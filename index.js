@@ -80,6 +80,17 @@ async function run() {
 
             next();
         };
+        const verifyRider = async (req, res, next) => {
+            const email = req.decoded_email;
+            const query = { email };
+            const user = await usersCollection.findOne(query);
+
+            if (!user || user.role !== 'admin') {
+                return res.status(403).send({ message: "Forbidden" });
+            }
+
+            next();
+        };
 
         // Parcel Api
         app.get('/parcels', async (req, res) => {
