@@ -135,6 +135,19 @@ async function run() {
             res.send(result)
         })
 
+        app.get('/parcels/delivery-status/stats', async (req, res) => {
+            const pipeline = [
+                {
+                    $group: {
+                        _id: '$deliveryStatus',
+                        count: { $sum: 1 }
+                    }
+                }
+            ]
+            const result = await parcelCollection.aggregate(pipeline).toArray()
+            res.send(result)
+        })
+
         app.post('/parcels', async (req, res) => {
             const parcel = req.body
 
@@ -308,6 +321,20 @@ async function run() {
             }
             const cursor = ridersCollection.find(query);
             const result = await cursor.toArray();
+            res.send(result)
+        })
+
+        app.get('/riders/delivery-per-day', async (req, res) => {
+            const email = req.query.email;
+            const pipeline = [
+                {
+                    $match: {
+                        riderEmail: email,
+                        deliveryStatus: "parcel_delivered"
+                    }
+                }
+            ]
+            const result = await parcelCollection.aggregate(pipeline).toArray()
             res.send(result)
         })
 
